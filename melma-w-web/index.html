@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MELMA-W Clinical Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <style>
+        canvas { filter: drop-shadow(0 10px 15px rgba(99, 102, 241, 0.1)); }
+        .radar-container { position: relative; }
+        .nav-link:hover { transform: translateY(-1px); }
+        #modelsList::-webkit-scrollbar { width: 4px; }
+        #modelsList::-webkit-scrollbar-thumb { background: #6366f1; border-radius: 10px; }
+    </style>
+</head>
+
+<body class="bg-slate-50 font-sans text-slate-900">
+
+    <div class="max-w-7xl mx-auto p-6">
+        <header class="flex justify-between items-center mb-8 p-6 bg-white rounded-2xl shadow-sm border border-slate-200">
+            <div>
+                <h1 class="text-2xl font-black text-indigo-900">MELMA-W <span class="font-light text-slate-400">Evaluator</span></h1>
+                <p class="text-[10px] text-slate-500 uppercase tracking-widest font-bold">Clinical Research Standard</p>
+            </div>
+            
+            <div class="flex items-center gap-4">
+               
+                <a href="instructions.html" class="flex items-center gap-2 bg-slate-50 text-slate-600 px-4 py-2.5 rounded-xl font-bold transition-all border border-slate-200 hover:bg-white hover:text-indigo-600 hover:shadow-sm text-sm">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    Read SOP Guide
+                </a>
+
+                <button id="openModal" class="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-indigo-200 active:scale-95">
+                    + Evaluate New Model
+                </button>
+                
+                <button id="downloadPDF" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-6 py-2.5 rounded-xl font-bold transition-all border border-slate-200">
+                    Download Report
+                </button>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <div class="lg:col-span-4 space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-4">Evaluation Status</h2>
+                    <div id="aiRationale" class="text-xs leading-relaxed text-slate-600 bg-slate-50 p-4 rounded-xl border border-dashed border-slate-200 min-h-[120px]">
+                        Awaiting clinical rationale...
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+                    <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-tighter mb-4">Model History</h2>
+                    <div id="modelsList" class="space-y-3 max-h-[450px] overflow-y-auto pr-2">
+                        </div>
+                </div>
+            </div>
+
+            <div class="lg:col-span-8">
+                <div class="bg-white p-8 rounded-3xl shadow-sm border border-slate-200 min-h-[600px] flex flex-col items-center justify-center relative">
+                    <div class="absolute top-6 left-8">
+                        <h2 class="text-[10px] font-black text-indigo-900 uppercase tracking-widest">Comparative Performance Radar</h2>
+                    </div>
+                    <div class="w-full max-w-lg radar-container">
+                        <canvas id="radarChart"></canvas>
+                    </div>
+                    <div class="mt-8 text-center">
+                        <p class="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Scores normalized to 100-point clinical scale</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="evaluationModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-3xl w-full max-w-xl p-8 shadow-2xl transform transition-all">
+            <h2 class="text-2xl font-bold text-slate-800 mb-2">Blinded Review</h2>
+            <p class="text-slate-400 text-sm mb-6">Standard 30-item MELMA-W clinical evaluation.</p>
+            
+            <div class="space-y-4">
+                <input type="text" id="modelName" placeholder="Model Name" 
+                    class="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500">
+                <textarea id="caseScenario" placeholder="Paste Scenario..." class="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl h-24 outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                <textarea id="llmAnswer" placeholder="Paste Answer..." class="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl h-40 outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+            </div>
+
+            <div class="flex justify-end gap-3 mt-8">
+                <button id="closeModal" class="px-6 py-3 text-slate-500 font-bold hover:text-slate-700">Cancel</button>
+                <button id="runReview" class="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100">
+                    Run MELMA-W Review
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+
+
+    <footer class="max-w-7xl mx-auto px-6 pb-12 mt-8">
+        <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+            <div class="flex items-start gap-4">
+                <div class="bg-amber-100 text-amber-600 p-2 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-xs font-black text-slate-800 uppercase tracking-widest mb-1">Medical Research Disclaimer</h3>
+                    <p class="text-[10px] leading-relaxed text-slate-500">
+                        The <strong>MELMA-W Evaluator</strong> is a research tool designed for the benchmarking and clinical evaluation of Large Language Models (LLMs). The scores and rationales generated by the integrated AI reviewer are based on the MELMA-CAF (Clinical Acceptability Framework) and do not constitute professional medical advice, diagnosis, or treatment. 
+                    </p>
+                    <p class="text-[10px] leading-relaxed text-slate-500 mt-2">
+                        Evaluations are performed by an automated system and may contain inaccuracies. This tool is intended for use by qualified researchers and healthcare professionals as part of structured AI validation studies. <strong>Never disregard professional medical advice or delay seeking it because of information processed through this tool.</strong>
+                    </p>
+                </div>
+            </div>
+            <div class="mt-6 pt-4 border-t border-slate-100 flex justify-between items-center text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                <span>© 2026 MELMA-W Framework Project</span>
+            </div>
+        </div>
+    </footer>
+
+
+
+
+    
+    <script src="app.js"></script>
+    <script src="ai.js"></script> <script src="app.js"></script>
+</body>
+</html>
